@@ -31,22 +31,66 @@ def install_deps():
 def do_login():
     print("\n[2/4] Opening browser...")
     print("  -> Sign in with your Google account")
-    print("  -> Wait until NotebookLM page loads")
-    print("  -> Then come back here\n")
+    print("  -> After login, come back here\n")
 
     from playwright.sync_api import sync_playwright
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=False)
-        page = browser.new_page()
-        page.goto("https://notebooklm.google.com")
-        page.wait_for_url("**/notebooklm.google.com/**", timeout=300000)
-        print("  Login detected!")
+        context = browser.new_context()
+        page = context.new_page()
+
+        # Try multiple URLs in case one is blocked
+        urls_to_try = [
+            "https://notebooklm.google.com",
+            "https://notebooklm.google.com/",
+            "https://accounts.google.com/signin",
+        ]
+
+        loaded = False
+        for url in urls_to_try:
+            try:
+                print(f"  Trying: {url}")
+                page.goto(url, timeout=60000, wait_until="domcontentloaded")
+                loaded = True
+                print(f"  Page loaded: {page.url}")
+                break
+            except Exception as e:
+                print(f"  Failed: {e}")
+                continue
+
+        if not loaded:
+            print("\n  Could not load NotebookLM page automatically.")
+            print("  Please navigate to https://notebooklm.google.com manually in the browser.")
+            print("  Login with Google, then press Enter here when done.")
+            input("\n  Press Enter after you have logged in... ")
+        else:
+            # Wait for user to complete login
+            print("  Waiting for you to login...")
+            print("  (This window will wait up to 5 minutes)\n")
+
+            # Wait until we're on notebooklm domain after login
+            try:
+                page.wait_for_url("**/notebooklm**", timeout=300000)
+                print("  Login detected!")
+            except:
+                # If URL didn't change, user might have logged in via different flow
+                print("  Continuing... checking login status")
+                time.sleep(3)
+
+            # If still on Google login, wait more
+            if "accounts.google" in page.url:
+                print("  Still on login page. Please complete login.")
+                page.wait_for_url("**/notebooklm**", timeout=300000)
+
         time.sleep(3)
-        state = browser.storage_state()
+
+        # Save storage state
+        storage_state = context.storage_state()
+        context.close()
         browser.close()
 
-    return state
+    return storage_state
 
 
 def upload_to_hf(storage_state):
@@ -55,7 +99,7 @@ def upload_to_hf(storage_state):
     state_json = json.dumps(storage_state)
     b64 = base64.b64encode(state_json.encode()).decode()
 
-    # Read token from saved config or env
+    # Read token
     token = os.environ.get("HF_TOKEN", "")
     if not token:
         config_path = os.path.join(os.path.expanduser("~"), ".hf_token")
@@ -64,11 +108,11 @@ def upload_to_hf(storage_state):
                 token = f.read().strip()
 
     if not token:
-        print("  No HF token found. Saving session locally...")
+        print("  No HF token found. Saving locally...")
         save_locally(b64)
         return False, b64
 
-    url = f"https://huggingface.co/api/spaces/HadiqaGohar/notestudio-ai-backend/secrets"
+    url = "https://huggingface.co/api/spaces/HadiqaGohar/notestudio-ai-backend/secrets"
     data = json.dumps({"key": "NBLM_SESSION", "value": b64}).encode()
     req = urllib.request.Request(
         url, data=data, method="POST",
@@ -121,16 +165,12 @@ def main():
         state = do_login()
     except Exception as e:
         print(f"\n  [ERROR] {e}")
+        print("  If browser opened, try manually going to:")
+        print("  https://notebooklm.google.com")
         input("\n  Press Enter to exit...")
         return
 
     success, b64 = upload_to_hf(state)
-
-    if not success:
-        # Offer to save token for next time
-        print("\n  To auto-upload next time, save your HF token:")
-        print("  Option A: Set environment variable HF_TOKEN")
-        print("  Option B: Save token to ~/.hf_token file")
 
     print("\n" + "=" * 55)
     if success:

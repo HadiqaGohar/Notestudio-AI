@@ -7,10 +7,11 @@ logger = logging.getLogger(__name__)
 
 MAX_RETRIES = 3
 BASE_DELAY = 2  # seconds
+POLLINATIONS_URL = "https://text.pollinations.ai/openai/chat/completions"
 
 
-async def _post_with_retry(payload: dict, timeout: float = 60.0) -> dict:
-    """POST to OpenRouter with retry on 429 / 529 (rate limit / overloaded)."""
+async def _post_openrouter(payload: dict, timeout: float = 60.0) -> dict:
+    """POST to OpenRouter with retry on 429 / 529."""
     for attempt in range(MAX_RETRIES):
         async with httpx.AsyncClient() as client:
             resp = await client.post(
@@ -34,6 +35,36 @@ async def _post_with_retry(payload: dict, timeout: float = 60.0) -> dict:
     return resp.json()
 
 
+async def _post_pollinations(messages: list, temperature: float = 0.3) -> str:
+    """Fallback: use Pollinations.ai free text API (no key needed)."""
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        resp = await client.post(
+            POLLINATIONS_URL,
+            headers={"Content-Type": "application/json"},
+            json={"model": "openai", "messages": messages, "temperature": temperature},
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        return data["choices"][0]["message"]["content"]
+
+
+async def _llm_call(messages: list, temperature: float = 0.3) -> str:
+    """Try OpenRouter first, fall back to Pollinations on rate limit."""
+    payload = {
+        "model": settings.llm_model,
+        "messages": messages,
+        "temperature": temperature,
+    }
+    try:
+        data = await _post_openrouter(payload)
+        return data["choices"][0]["message"]["content"]
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code in (429, 529):
+            logger.warning("OpenRouter rate limited, falling back to Pollinations.ai")
+            return await _post_pollinations(messages, temperature)
+        raise
+
+
 async def chat_completion(source_text: str, question: str) -> str:
     """Call OpenRouter's API with a free Google model, grounded in source text."""
     system_prompt = (
@@ -48,16 +79,11 @@ async def chat_completion(source_text: str, question: str) -> str:
     )
     user_prompt = f"<source_text>\n{source_text}\n</source_text>\n\nQuestion: {question}"
 
-    payload = {
-        "model": settings.llm_model,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
-        "temperature": 0.3,
-    }
-    data = await _post_with_retry(payload)
-    return data["choices"][0]["message"]["content"]
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt},
+    ]
+    return await _llm_call(messages, temperature=0.3)
 
 
 async def generate_summary(source_text: str) -> str:
@@ -67,13 +93,7 @@ async def generate_summary(source_text: str) -> str:
         "Make it suitable for narration, with natural pauses and clear structure.\n\n"
         f"Text:\n\n{source_text}"
     )
-    payload = {
-        "model": settings.llm_model,
-        "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.5,
-    }
-    data = await _post_with_retry(payload)
-    return data["choices"][0]["message"]["content"]
+    return await _llm_call([{"role": "user", "content": prompt}], temperature=0.5)
 
 
 async def generate_narration_script(source_text: str) -> str:
@@ -90,16 +110,11 @@ async def generate_narration_script(source_text: str) -> str:
         "6. Return ONLY the narration script, nothing else."
     )
     user_prompt = f"<source_text>\n{source_text}\n</source_text>"
-    payload = {
-        "model": settings.llm_model,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
-        "temperature": 0.5,
-    }
-    data = await _post_with_retry(payload)
-    return data["choices"][0]["message"]["content"]
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt},
+    ]
+    return await _llm_call(messages, temperature=0.5)
 
 
 async def generate_image_prompt(source_text: str) -> str:
@@ -109,10 +124,4 @@ async def generate_image_prompt(source_text: str) -> str:
         "that would make a good illustrative image. Return ONLY the prompt, nothing else.\n\n"
         f"Text:\n\n{source_text}"
     )
-    payload = {
-        "model": settings.llm_model,
-        "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.7,
-    }
-    data = await _post_with_retry(payload)
-    return data["choices"][0]["message"]["content"]
+    return await _llm_call([{"role": "user", "content": prompt}], temperature=0.7)

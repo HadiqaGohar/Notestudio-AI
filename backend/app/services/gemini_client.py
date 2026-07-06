@@ -1,5 +1,37 @@
 from app.config import settings
 import httpx
+import asyncio
+import logging
+
+logger = logging.getLogger(__name__)
+
+MAX_RETRIES = 3
+BASE_DELAY = 2  # seconds
+
+
+async def _post_with_retry(payload: dict, timeout: float = 60.0) -> dict:
+    """POST to OpenRouter with retry on 429 / 529 (rate limit / overloaded)."""
+    for attempt in range(MAX_RETRIES):
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                f"{settings.openrouter_base_url}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {settings.openrouter_api_key}",
+                    "Content-Type": "application/json",
+                },
+                json=payload,
+                timeout=timeout,
+            )
+            if resp.status_code in (429, 529):
+                retry_after = resp.headers.get("retry-after")
+                delay = int(retry_after) if retry_after else BASE_DELAY * (2 ** attempt)
+                logger.warning(f"Rate limited (attempt {attempt+1}/{MAX_RETRIES}), retrying in {delay}s")
+                await asyncio.sleep(delay)
+                continue
+            resp.raise_for_status()
+            return resp.json()
+    resp.raise_for_status()
+    return resp.json()
 
 
 async def chat_completion(source_text: str, question: str) -> str:
@@ -16,26 +48,16 @@ async def chat_completion(source_text: str, question: str) -> str:
     )
     user_prompt = f"<source_text>\n{source_text}\n</source_text>\n\nQuestion: {question}"
 
-    async with httpx.AsyncClient() as client:
-        resp = await client.post(
-            f"{settings.openrouter_base_url}/chat/completions",
-            headers={
-                "Authorization": f"Bearer {settings.openrouter_api_key}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": settings.llm_model,
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-                "temperature": 0.3,
-            },
-            timeout=60.0,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        return data["choices"][0]["message"]["content"]
+    payload = {
+        "model": settings.llm_model,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        "temperature": 0.3,
+    }
+    data = await _post_with_retry(payload)
+    return data["choices"][0]["message"]["content"]
 
 
 async def generate_summary(source_text: str) -> str:
@@ -45,24 +67,39 @@ async def generate_summary(source_text: str) -> str:
         "Make it suitable for narration, with natural pauses and clear structure.\n\n"
         f"Text:\n\n{source_text}"
     )
+    payload = {
+        "model": settings.llm_model,
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0.5,
+    }
+    data = await _post_with_retry(payload)
+    return data["choices"][0]["message"]["content"]
 
-    async with httpx.AsyncClient() as client:
-        resp = await client.post(
-            f"{settings.openrouter_base_url}/chat/completions",
-            headers={
-                "Authorization": f"Bearer {settings.openrouter_api_key}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": settings.llm_model,
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0.5,
-            },
-            timeout=60.0,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        return data["choices"][0]["message"]["content"]
+
+async def generate_narration_script(source_text: str) -> str:
+    """Generate a 60-90 second single-narrator audio overview script."""
+    system_prompt = (
+        "You are an audio script writer for NoteStudio AI. "
+        "Write a clear, conversational narration script for a single speaker. "
+        "Rules:\n"
+        "1. The script should be 60-90 seconds when read aloud (~150-220 words).\n"
+        "2. Use a warm, informative tone — like a podcast host summarizing key points.\n"
+        "3. Single narrator only — no dialogue, no second speaker.\n"
+        "4. Include a brief intro (Here is an overview of...) and a closing thought.\n"
+        "5. Use natural sentence flow; avoid bullet points or lists.\n"
+        "6. Return ONLY the narration script, nothing else."
+    )
+    user_prompt = f"<source_text>\n{source_text}\n</source_text>"
+    payload = {
+        "model": settings.llm_model,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        "temperature": 0.5,
+    }
+    data = await _post_with_retry(payload)
+    return data["choices"][0]["message"]["content"]
 
 
 async def generate_image_prompt(source_text: str) -> str:
@@ -72,21 +109,10 @@ async def generate_image_prompt(source_text: str) -> str:
         "that would make a good illustrative image. Return ONLY the prompt, nothing else.\n\n"
         f"Text:\n\n{source_text}"
     )
-
-    async with httpx.AsyncClient() as client:
-        resp = await client.post(
-            f"{settings.openrouter_base_url}/chat/completions",
-            headers={
-                "Authorization": f"Bearer {settings.openrouter_api_key}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": settings.llm_model,
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0.7,
-            },
-            timeout=60.0,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        return data["choices"][0]["message"]["content"]
+    payload = {
+        "model": settings.llm_model,
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0.7,
+    }
+    data = await _post_with_retry(payload)
+    return data["choices"][0]["message"]["content"]

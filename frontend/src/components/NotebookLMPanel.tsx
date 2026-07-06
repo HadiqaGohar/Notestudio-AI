@@ -13,6 +13,7 @@ import {
   nlmGenerateReport,
   nlmGenerateMindMap,
   nlmGenerateSlides,
+  nlmGenerateInfographic,
 } from "@/lib/api";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -25,6 +26,7 @@ type NlmTab =
   | "Setup"
   | "Chat"
   | "Audio"
+  | "Image"
   | "Video"
   | "Quiz"
   | "Report"
@@ -35,6 +37,7 @@ const nlmTabs: NlmTab[] = [
   "Setup",
   "Chat",
   "Audio",
+  "Image",
   "Video",
   "Quiz",
   "Report",
@@ -46,6 +49,7 @@ const nlmTabIcons: Record<NlmTab, string> = {
   Setup: "🔗",
   Chat: "💬",
   Audio: "🎙️",
+  Image: "🎨",
   Video: "🎬",
   Quiz: "❓",
   Report: "📄",
@@ -138,6 +142,9 @@ export default function NotebookLMPanel({ sourceText }: NotebookLMPanelProps) {
         {activeTab === "Audio" && notebookId && (
           <NlmAudioTab notebookId={notebookId} />
         )}
+        {activeTab === "Image" && notebookId && (
+          <NlmImageTab notebookId={notebookId} />
+        )}
         {activeTab === "Video" && notebookId && (
           <NlmVideoTab notebookId={notebookId} />
         )}
@@ -185,22 +192,70 @@ function SetupTab({
       {!notebookId ? (
         <>
           <p className="text-sm text-purple-200/70 leading-relaxed">
-            Click below to create a <strong>real notebook</strong> on Google
-            NotebookLM and add your source text as a source.
+            This portal connects to your <strong>real Google NotebookLM</strong> account.
+            Once connected, all features (chat, audio, video, quiz, etc.) run directly on NotebookLM.
           </p>
+
+          {/* Connection Steps */}
+          <div className="p-4 rounded-lg bg-white/5 border border-emerald-500/20 space-y-3">
+            <p className="text-xs text-emerald-400 font-semibold uppercase tracking-wider">
+              How to Connect (one-time setup)
+            </p>
+            <div className="space-y-2 text-xs text-purple-200/70">
+              <div className="flex gap-2">
+                <span className="text-emerald-400 font-bold shrink-0">1.</span>
+                <p>Open terminal on your laptop and run:</p>
+              </div>
+              <pre className="bg-black/30 rounded-lg p-2 text-emerald-300 font-mono text-xs overflow-x-auto">
+{`pip install "notebooklm-py[browser]"
+playwright install chromium
+notebooklm login`}
+              </pre>
+              <p className="text-purple-300/50 pl-4">
+                Browser will open → sign in with your Google account → session saved.
+              </p>
+
+              <div className="flex gap-2">
+                <span className="text-emerald-400 font-bold shrink-0">2.</span>
+                <p>Export your session cookie:</p>
+              </div>
+              <pre className="bg-black/30 rounded-lg p-2 text-emerald-300 font-mono text-xs overflow-x-auto">
+{`cat ~/.notebooklm/storage_state.json | base64 -w 0`}
+              </pre>
+              <p className="text-purple-300/50 pl-4">
+                Copy the entire base64 output.
+              </p>
+
+              <div className="flex gap-2">
+                <span className="text-emerald-400 font-bold shrink-0">3.</span>
+                <p>Add it as a secret on Hugging Face:</p>
+              </div>
+              <p className="pl-4 text-purple-300/50">
+                HF Dashboard → <strong className="text-white">notestudio-ai-backend</strong> Space →
+                Settings → Secrets → New Secret:<br />
+                <span className="font-mono text-emerald-300">NBLM_SESSION</span> = paste the base64 text
+              </p>
+              <p className="pl-4 text-purple-300/50">
+                Then click <strong className="text-white">Redeploy</strong>.
+              </p>
+            </div>
+          </div>
+
           <button
             onClick={onConnect}
             disabled={!sourceText.trim()}
             className="w-full py-3 rounded-xl bg-emerald-600 text-white font-medium hover:bg-emerald-500 transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-emerald-600/20"
           >
-            Create Notebook & Add Source
+            {sourceText.trim()
+              ? "Create Notebook & Add Source on NotebookLM"
+              : "Paste source text above first"}
           </button>
         </>
       ) : (
         <div className="space-y-3">
           <div className="flex items-center gap-2 text-emerald-400">
             <span>✅</span>
-            <span className="font-medium">Connected to NotebookLM</span>
+            <span className="font-medium">Connected to Real NotebookLM</span>
           </div>
           <div className="p-3 rounded-lg bg-white/5 border border-emerald-500/20 text-sm">
             <p className="text-purple-200/60">
@@ -217,7 +272,7 @@ function SetupTab({
             </p>
           </div>
           <p className="text-xs text-purple-300/50">
-            Now use the tabs above — Chat, Audio, Video, Quiz, Report, Slides,
+            Now use the tabs above — Chat, Audio, Image, Video, Quiz, Report, Slides,
             Mind Map — everything runs on the real Google NotebookLM.
           </p>
         </div>
@@ -376,6 +431,83 @@ function NlmAudioTab({ notebookId }: { notebookId: string }) {
       {result && result.file && (
         <div className="p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-sm text-emerald-300">
           Audio generated! File: <code className="text-xs">{result.file}</code>
+          <p className="mt-1 text-xs text-purple-300/50">
+            Artifact ID: {result.artifact_id}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Image (Infographic) Tab ──────────────────────────────────────────
+
+function NlmImageTab({ notebookId }: { notebookId: string }) {
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [instructions, setInstructions] = useState("");
+  const [orientation, setOrientation] = useState("landscape");
+
+  const handleGenerate = async () => {
+    setLoading(true);
+    setError(null);
+    setResult(null);
+    const data = await nlmGenerateInfographic(
+      notebookId,
+      instructions,
+      orientation
+    );
+    if (data.error) setError(data.error);
+    else setResult(data);
+    setLoading(false);
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center gap-2">
+        <span className="text-xs bg-emerald-600/20 text-emerald-400 px-2 py-0.5 rounded-full">
+          Real NotebookLM Infographic
+        </span>
+      </div>
+      <p className="text-xs text-purple-300/50 -mt-2">
+        NotebookLM generates infographics from your source — visual summaries, diagrams, and data visualizations.
+      </p>
+      <div className="flex gap-2">
+        <input
+          value={instructions}
+          onChange={(e) => setInstructions(e.target.value)}
+          placeholder="Instructions (optional): e.g. key statistics, comparison chart..."
+          className="flex-1 px-4 py-2.5 rounded-lg bg-white/5 border border-emerald-500/20 text-white text-sm placeholder-purple-300/40 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+        />
+        <select
+          value={orientation}
+          onChange={(e) => setOrientation(e.target.value)}
+          className="px-3 py-2 rounded-lg bg-white/5 border border-emerald-500/20 text-white text-sm"
+        >
+          <option value="landscape">Landscape</option>
+          <option value="portrait">Portrait</option>
+          <option value="square">Square</option>
+        </select>
+      </div>
+      <button
+        onClick={handleGenerate}
+        disabled={loading}
+        className="w-full py-3 rounded-xl bg-emerald-600 text-white font-medium hover:bg-emerald-500 disabled:opacity-40 shadow-lg shadow-emerald-600/20"
+      >
+        {loading
+          ? "Generating on NotebookLM... (may take 1-2 min)"
+          : "Generate Infographic"}
+      </button>
+      {error && (
+        <div className="px-4 py-2.5 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300 text-sm">
+          {error}
+        </div>
+      )}
+      {result && result.file && (
+        <div className="p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-sm text-emerald-300">
+          Infographic generated! File:{" "}
+          <code className="text-xs">{result.file}</code>
           <p className="mt-1 text-xs text-purple-300/50">
             Artifact ID: {result.artifact_id}
           </p>

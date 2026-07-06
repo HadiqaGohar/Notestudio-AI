@@ -214,3 +214,20 @@ export async function nlmGenerateSlides(
   });
   return res.json();
 }
+
+export async function nlmGenerateInfographic(
+  notebookId: string,
+  instructions?: string,
+  orientation?: string
+) {
+  const res = await fetch(`${API_URL}/api/nlm/generate/infographic`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      notebook_id: notebookId,
+      instructions,
+      orientation,
+    }),
+  });
+  return res.json();
+}

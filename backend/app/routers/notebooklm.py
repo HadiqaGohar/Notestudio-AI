@@ -194,3 +194,21 @@ async def nlm_generate_slides(req: GenerateRequest):
     except Exception as e:
         logger.exception("Failed to generate slide deck")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+class InfographicRequest(BaseModel):
+    notebook_id: str
+    instructions: str = ""
+    orientation: str = "landscape"
+
+
+@router.post("/nlm/generate/infographic")
+async def nlm_generate_infographic(req: InfographicRequest):
+    _check()
+    try:
+        return await nlm.generate_infographic(
+            req.notebook_id, req.instructions, req.orientation
+        )
+    except Exception as e:
+        logger.exception("Failed to generate infographic")
+        raise HTTPException(status_code=500, detail=str(e))

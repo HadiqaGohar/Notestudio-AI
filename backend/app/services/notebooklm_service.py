@@ -191,3 +191,25 @@ async def generate_slide_deck(notebook_id: str, instructions: str = "") -> dict:
     output_path = os.path.join(SESSION_DIR, f"slides_{notebook_id}.pdf")
     await client.artifacts.download_slide_deck(notebook_id, output_path, artifact.id)
     return {"artifact_id": artifact.id, "file": output_path, "title": artifact.title}
+
+
+async def generate_infographic(
+    notebook_id: str, instructions: str = "", orientation: str = "landscape"
+) -> dict:
+    from notebooklm import InfographicOrientation
+
+    client = await get_client()
+    orient = getattr(InfographicOrientation, orientation.upper(), InfographicOrientation.LANDSCAPE)
+    status = await client.artifacts.generate_infographic(
+        notebook_id, instructions=instructions or None, orientation=orient
+    )
+    status = await client.artifacts.wait_for_completion(notebook_id, status.task_id)
+
+    artifacts = await client.artifacts.list_infographics(notebook_id)
+    if not artifacts:
+        return {"error": "No infographic artifact found"}
+
+    artifact = artifacts[-1]
+    output_path = os.path.join(SESSION_DIR, f"infographic_{notebook_id}.png")
+    await client.artifacts.download_infographic(notebook_id, output_path, artifact.id)
+    return {"artifact_id": artifact.id, "file": output_path, "title": artifact.title}

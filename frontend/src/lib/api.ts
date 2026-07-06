@@ -79,3 +79,138 @@ export async function postVideo(sourceText: string) {
     return { error: true, detail: "Could not connect to the backend server." };
   }
 }
+
+// ─── NotebookLM Integration ──────────────────────────────────────────
+
+export async function nlmStatus() {
+  const res = await fetch(`${API_URL}/api/nlm/status`);
+  return res.json();
+}
+
+export async function nlmListNotebooks() {
+  const res = await fetch(`${API_URL}/api/nlm/notebooks`);
+  return res.json();
+}
+
+export async function nlmCreateNotebook(title: string) {
+  const res = await fetch(`${API_URL}/api/nlm/notebooks`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title }),
+  });
+  return res.json();
+}
+
+export async function nlmDeleteNotebook(notebookId: string) {
+  const res = await fetch(`${API_URL}/api/nlm/notebooks`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ notebook_id: notebookId }),
+  });
+  return res.json();
+}
+
+export async function nlmAddTextSource(
+  notebookId: string,
+  title: string,
+  content: string
+) {
+  const res = await fetch(`${API_URL}/api/nlm/sources/text`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      notebook_id: notebookId,
+      title,
+      content,
+    }),
+  });
+  return res.json();
+}
+
+export async function nlmListSources(notebookId: string) {
+  const res = await fetch(`${API_URL}/api/nlm/sources/${notebookId}`);
+  return res.json();
+}
+
+export async function nlmChat(notebookId: string, question: string) {
+  const res = await fetchWithRetry(`${API_URL}/api/nlm/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ notebook_id: notebookId, question }),
+  });
+  return res.json();
+}
+
+export async function nlmGenerateAudio(
+  notebookId: string,
+  instructions?: string
+) {
+  const res = await fetch(`${API_URL}/api/nlm/generate/audio`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ notebook_id: notebookId, instructions }),
+  });
+  return res.json();
+}
+
+export async function nlmGenerateVideo(
+  notebookId: string,
+  instructions?: string,
+  style?: string
+) {
+  const res = await fetch(`${API_URL}/api/nlm/generate/video`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      notebook_id: notebookId,
+      instructions,
+      style,
+    }),
+  });
+  return res.json();
+}
+
+export async function nlmGenerateQuiz(
+  notebookId: string,
+  difficulty?: string
+) {
+  const res = await fetch(`${API_URL}/api/nlm/generate/quiz`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ notebook_id: notebookId, difficulty }),
+  });
+  return res.json();
+}
+
+export async function nlmGenerateReport(
+  notebookId: string,
+  customPrompt?: string
+) {
+  const res = await fetch(`${API_URL}/api/nlm/generate/report`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ notebook_id: notebookId, custom_prompt: customPrompt }),
+  });
+  return res.json();
+}
+
+export async function nlmGenerateMindMap(notebookId: string) {
+  const res = await fetch(`${API_URL}/api/nlm/generate/mindmap`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ notebook_id: notebookId }),
+  });
+  return res.json();
+}
+
+export async function nlmGenerateSlides(
+  notebookId: string,
+  instructions?: string
+) {
+  const res = await fetch(`${API_URL}/api/nlm/generate/slides`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ notebook_id: notebookId, instructions }),
+  });
+  return res.json();
+}

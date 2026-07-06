@@ -1,7 +1,12 @@
+"use client";
+
+import { useState } from "react";
 import SourceInput from "@/components/SourceInput";
 import TabBar from "@/components/TabBar";
 
 export default function Home() {
+  const [sourceText, setSourceText] = useState("");
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
       <div className="container mx-auto px-4 py-12">
@@ -15,8 +20,11 @@ export default function Home() {
         </header>
 
         <div className="max-w-4xl mx-auto">
-          <SourceInput />
-          <TabBar />
+          <SourceInput
+            sourceText={sourceText}
+            onSourceTextChange={setSourceText}
+          />
+          <TabBar sourceText={sourceText} />
         </div>
       </div>
     </div>

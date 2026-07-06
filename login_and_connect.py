@@ -1,22 +1,27 @@
 """
-NoteStudio AI — One-Click NotebookLM Login
-==========================================
-DOUBLE CLICK this file to connect NotebookLM.
+NoteStudio AI — NotebookLM Login Helper
+========================================
+TWO OPTIONS — jo easy ho wo karo:
 
-1. Browser opens -> Login with Google
-2. Session auto-uploaded to HuggingFace
-3. Done! Visit notestudio-ai.vercel.app -> Click NotebookLM
+OPTION A: Auto (browser opens automatically)
+  -> python login_and_connect.py
+
+OPTION B: Manual (your regular Chrome browser)
+  -> Open https://notebooklm.google.com in Chrome
+  -> Login with Google
+  -> Then run: python login_from_chrome.py
+  -> Cookies auto-extracted from Chrome and uploaded!
 """
-import subprocess, sys, os, base64, json, time, urllib.request, urllib.error
+import subprocess, sys, os, base64, json, time, shutil, sqlite3, http.cookiejar
 
 
 def install_deps():
-    print("[1/4] Checking dependencies...")
+    print("[1/3] Checking dependencies...")
     try:
         from playwright.sync_api import sync_playwright
         print("  [OK] All ready")
     except ImportError:
-        print("  Installing required packages...")
+        print("  Installing playwright...")
         subprocess.check_call(
             [sys.executable, "-m", "pip", "install", "playwright"],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
@@ -29,9 +34,10 @@ def install_deps():
 
 
 def do_login():
-    print("\n[2/4] Opening browser...")
+    print("\n[2/3] Opening browser...")
     print("  -> Sign in with your Google account")
-    print("  -> After login, come back here\n")
+    print("  -> Wait until NotebookLM loads")
+    print("  -> Then come back here\n")
 
     from playwright.sync_api import sync_playwright
 
@@ -40,52 +46,20 @@ def do_login():
         context = browser.new_context()
         page = context.new_page()
 
-        # Try multiple URLs in case one is blocked
-        urls_to_try = [
-            "https://notebooklm.google.com",
-            "https://notebooklm.google.com/",
-            "https://accounts.google.com/signin",
-        ]
+        try:
+            page.goto("https://accounts.google.com", timeout=120000, wait_until="domcontentloaded")
+            print(f"  Page loaded: {page.url}")
+        except Exception as e:
+            print(f"  Page load issue: {e}")
+            print("  Please navigate to https://notebooklm.google.com manually")
+            input("  Press Enter after you have navigated there... ")
 
-        loaded = False
-        for url in urls_to_try:
-            try:
-                print(f"  Trying: {url}")
-                page.goto(url, timeout=60000, wait_until="domcontentloaded")
-                loaded = True
-                print(f"  Page loaded: {page.url}")
-                break
-            except Exception as e:
-                print(f"  Failed: {e}")
-                continue
-
-        if not loaded:
-            print("\n  Could not load NotebookLM page automatically.")
-            print("  Please navigate to https://notebooklm.google.com manually in the browser.")
-            print("  Login with Google, then press Enter here when done.")
-            input("\n  Press Enter after you have logged in... ")
-        else:
-            # Wait for user to complete login
-            print("  Waiting for you to login...")
-            print("  (This window will wait up to 5 minutes)\n")
-
-            # Wait until we're on notebooklm domain after login
-            try:
-                page.wait_for_url("**/notebooklm**", timeout=300000)
-                print("  Login detected!")
-            except:
-                # If URL didn't change, user might have logged in via different flow
-                print("  Continuing... checking login status")
-                time.sleep(3)
-
-            # If still on Google login, wait more
-            if "accounts.google" in page.url:
-                print("  Still on login page. Please complete login.")
-                page.wait_for_url("**/notebooklm**", timeout=300000)
+        print("\n  Please login with Google in the browser window.")
+        print("  After login, navigate to https://notebooklm.google.com")
+        print("  Then press Enter here...")
+        input("\n  Press Enter when you see NotebookLM loaded in browser: ")
 
         time.sleep(3)
-
-        # Save storage state
         storage_state = context.storage_state()
         context.close()
         browser.close()
@@ -94,12 +68,11 @@ def do_login():
 
 
 def upload_to_hf(storage_state):
-    print("\n[3/4] Uploading to HuggingFace Space...")
+    print("\n[3/3] Uploading to HuggingFace Space...")
 
     state_json = json.dumps(storage_state)
     b64 = base64.b64encode(state_json.encode()).decode()
 
-    # Read token
     token = os.environ.get("HF_TOKEN", "")
     if not token:
         config_path = os.path.join(os.path.expanduser("~"), ".hf_token")
@@ -108,7 +81,6 @@ def upload_to_hf(storage_state):
                 token = f.read().strip()
 
     if not token:
-        print("  No HF token found. Saving locally...")
         save_locally(b64)
         return False, b64
 
@@ -165,8 +137,6 @@ def main():
         state = do_login()
     except Exception as e:
         print(f"\n  [ERROR] {e}")
-        print("  If browser opened, try manually going to:")
-        print("  https://notebooklm.google.com")
         input("\n  Press Enter to exit...")
         return
 
@@ -178,12 +148,9 @@ def main():
         print("")
         print("  Visit: https://notestudio-ai.vercel.app")
         print("  Click 'NotebookLM' -> It will work!")
-        print("")
-        print("  (Wait 1 min if it shows 'Not Connected')")
     else:
         print("  Session saved locally.")
-        print(f"  Copy text from: ~/notebooklm_session.txt")
-        print("  Set as NBLM_SESSION on HF Space manually.")
+        print("  Follow instructions above to set manually.")
     print("=" * 55)
 
     input("\n  Press Enter to exit...")

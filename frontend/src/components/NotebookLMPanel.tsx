@@ -192,55 +192,48 @@ function SetupTab({
       {!notebookId ? (
         <>
           <p className="text-sm text-purple-200/70 leading-relaxed">
-            This portal connects to your <strong>real Google NotebookLM</strong> account.
-            Once connected, all features (chat, audio, video, quiz, etc.) run directly on NotebookLM.
+            Connect your <strong>real Google NotebookLM</strong> account.
+            All features (chat, audio, video, quiz, images, slides, mind maps) will run directly on NotebookLM.
           </p>
 
-          {/* Connection Steps */}
-          <div className="p-4 rounded-lg bg-white/5 border border-emerald-500/20 space-y-3">
-            <p className="text-xs text-emerald-400 font-semibold uppercase tracking-wider">
-              How to Connect (one-time setup)
-            </p>
-            <div className="space-y-2 text-xs text-purple-200/70">
-              <div className="flex gap-2">
-                <span className="text-emerald-400 font-bold shrink-0">1.</span>
-                <p>Open terminal on your laptop and run:</p>
-              </div>
-              <pre className="bg-black/30 rounded-lg p-2 text-emerald-300 font-mono text-xs overflow-x-auto">
-{`pip install "notebooklm-py[browser]"
-playwright install chromium
-notebooklm login`}
-              </pre>
-              <p className="text-purple-300/50 pl-4">
-                Browser will open → sign in with your Google account → session saved.
-              </p>
-
-              <div className="flex gap-2">
-                <span className="text-emerald-400 font-bold shrink-0">2.</span>
-                <p>Export your session cookie:</p>
-              </div>
-              <pre className="bg-black/30 rounded-lg p-2 text-emerald-300 font-mono text-xs overflow-x-auto">
-{`cat ~/.notebooklm/storage_state.json | base64 -w 0`}
-              </pre>
-              <p className="text-purple-300/50 pl-4">
-                Copy the entire base64 output.
-              </p>
-
-              <div className="flex gap-2">
-                <span className="text-emerald-400 font-bold shrink-0">3.</span>
-                <p>Add it as a secret on Hugging Face:</p>
-              </div>
-              <p className="pl-4 text-purple-300/50">
-                HF Dashboard → <strong className="text-white">notestudio-ai-backend</strong> Space →
-                Settings → Secrets → New Secret:<br />
-                <span className="font-mono text-emerald-300">NBLM_SESSION</span> = paste the base64 text
-              </p>
-              <p className="pl-4 text-purple-300/50">
-                Then click <strong className="text-white">Redeploy</strong>.
-              </p>
+          {/* Step 1: Login button */}
+          <div className="p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/20 space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="w-6 h-6 rounded-full bg-emerald-600 text-white text-xs flex items-center justify-center font-bold">1</span>
+              <p className="text-sm text-emerald-300 font-medium">Login to NotebookLM in Chrome</p>
             </div>
+            <button
+              onClick={() => window.open("https://notebooklm.google.com", "_blank")}
+              className="w-full py-3 rounded-xl bg-emerald-600 text-white font-medium hover:bg-emerald-500 transition-all shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+              Open NotebookLM in Chrome
+            </button>
+            <p className="text-xs text-purple-300/50">
+              Login with your Google account. Make sure NotebookLM page loads.
+            </p>
           </div>
 
+          {/* Step 2: Run connect script */}
+          <div className="p-4 rounded-lg bg-white/5 border border-purple-500/20 space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="w-6 h-6 rounded-full bg-purple-600 text-white text-xs flex items-center justify-center font-bold">2</span>
+              <p className="text-sm text-purple-200 font-medium">Run the connect script</p>
+            </div>
+            <p className="text-xs text-purple-200/60">
+              Open terminal and run:
+            </p>
+            <pre className="bg-black/30 rounded-lg p-3 text-emerald-300 font-mono text-xs overflow-x-auto select-all">
+{`python connect.py`}
+            </pre>
+            <p className="text-xs text-purple-300/50">
+              This reads cookies from your Chrome and uploads them automatically. No copy-paste needed.
+            </p>
+          </div>
+
+          {/* Create Notebook button */}
           <button
             onClick={onConnect}
             disabled={!sourceText.trim()}

@@ -7,10 +7,10 @@
 
 | # | Question | Expected Answer | Actual | Pass/Fail |
 |---|----------|----------------|--------|-----------|
-| 1 | How do solar panels generate electricity? | Using photovoltaic cells that convert sunlight into electricity | | |
-| 2 | What percentage of global electricity came from renewables in 2023? | Nearly 30% | | |
-| 3 | What is the main drawback of solar and wind power? | Storage is a major challenge because they are not always available when demand is highest | | |
-| 4 | Which country leads in solar panel production? | "I couldn't find information about that in the provided source material." (not in text) | | |
+| 1 | How do solar panels generate electricity? | Using photovoltaic cells that convert sunlight into electricity | Solar panels convert sunlight directly into electricity using photovoltaic cells. | ✅ Pass |
+| 2 | What percentage of global electricity came from renewables in 2023? | Nearly 30% | Nearly 30% of global electricity generation came from renewable sources in 2023. | ✅ Pass |
+| 3 | What is the main drawback of solar and wind power? | Storage is a major challenge because they are not always available when demand is highest | The main drawback is that storage is a major challenge, because solar and wind power are not always available when demand is highest. | ✅ Pass |
+| 4 | Which country leads in solar panel production? | "I couldn't find information about that in the provided source material." (not in text) | I couldn't find information about that in the provided source material. | ✅ Pass |
 
 ---
 

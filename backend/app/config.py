@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     tts_voice: str = "en-US-GuyNeural"
     gemini_api_key: str = ""
     gemini_model: str = "gemini-2.0-flash"
+    nblm_session: str = ""
     cors_origins: list[str] = [
         "http://localhost:3000",
         "https://notestudio-ai.vercel.app",

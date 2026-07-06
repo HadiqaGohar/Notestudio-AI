@@ -14,6 +14,11 @@ class AudioRequest(BaseModel):
     source_text: str
 
 
+class AudioResponse(BaseModel):
+    audio_url: str
+    script: str
+
+
 class ImageRequest(BaseModel):
     source_text: str
 

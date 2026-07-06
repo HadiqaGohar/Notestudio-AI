@@ -35,6 +35,29 @@ async def _post_openrouter(payload: dict, timeout: float = 60.0) -> dict:
     return resp.json()
 
 
+async def _call_gemini(messages: list, temperature: float = 0.3) -> str:
+    """Call Google Gemini directly via REST API."""
+    if not settings.gemini_api_key:
+        raise RuntimeError("No Gemini API key configured")
+
+    contents = []
+    for msg in messages:
+        role = "user" if msg["role"] in ("user", "system") else "model"
+        contents.append({"role": role, "parts": [{"text": msg["content"]}]})
+
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{settings.gemini_model}:generateContent?key={settings.gemini_api_key}"
+    payload = {
+        "contents": contents,
+        "generationConfig": {"temperature": temperature},
+    }
+
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        resp = await client.post(url, json=payload)
+        resp.raise_for_status()
+        data = resp.json()
+        return data["candidates"][0]["content"]["parts"][0]["text"]
+
+
 async def _post_pollinations(messages: list, temperature: float = 0.3) -> str:
     """Fallback: use Pollinations.ai free text API (no key needed)."""
     async with httpx.AsyncClient(timeout=60.0) as client:
@@ -49,7 +72,7 @@ async def _post_pollinations(messages: list, temperature: float = 0.3) -> str:
 
 
 async def _llm_call(messages: list, temperature: float = 0.3) -> str:
-    """Try OpenRouter first, fall back to Pollinations on rate limit."""
+    """Try OpenRouter → Gemini → Pollinations."""
     payload = {
         "model": settings.llm_model,
         "messages": messages,
@@ -60,13 +83,22 @@ async def _llm_call(messages: list, temperature: float = 0.3) -> str:
         return data["choices"][0]["message"]["content"]
     except httpx.HTTPStatusError as e:
         if e.response.status_code in (429, 529):
-            logger.warning("OpenRouter rate limited, falling back to Pollinations.ai")
-            return await _post_pollinations(messages, temperature)
-        raise
+            logger.warning("OpenRouter rate limited, trying Gemini...")
+        else:
+            raise
+
+    try:
+        result = await _call_gemini(messages, temperature)
+        logger.info("Gemini responded successfully")
+        return result
+    except Exception as ex:
+        logger.warning(f"Gemini failed ({ex}), falling back to Pollinations.ai")
+
+    return await _post_pollinations(messages, temperature)
 
 
 async def chat_completion(source_text: str, question: str) -> str:
-    """Call OpenRouter's API with a free Google model, grounded in source text."""
+    """Call LLM with grounded source material."""
     system_prompt = (
         "You are NoteStudio AI, a research assistant that answers questions "
         "strictly based on the provided source material. Rules:\n"

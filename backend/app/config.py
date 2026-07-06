@@ -7,7 +7,13 @@ class Settings(BaseSettings):
     llm_model: str = "google/gemma-4-31b-it:free"
     image_model: str = "recraft/recraft-v4:free"
     tts_voice: str = "en-US-GuyNeural"
-    cors_origins: list[str] = ["http://localhost:3000"]
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-2.0-flash"
+    cors_origins: list[str] = [
+        "http://localhost:3000",
+        "https://notestudio-ai.vercel.app",
+        "https://hadiqagohar-notestudio-ai-backend.hf.space",
+    ]
     temp_dir: str = "/tmp/notestudio"
 
     class Config:
